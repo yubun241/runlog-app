@@ -32,9 +32,14 @@
   header button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 10px; padding: 0 14px; min-height: 40px; font-size: 14px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
   form.entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  form.entry label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
-  form.entry input { font-size: 20px; padding: 12px; min-height: 48px; border: 1px solid var(--line); border-radius: 10px;
-    background: var(--bg); color: var(--text); width: 100%; }
+  form.entry label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; min-width: 0; }
+  form.entry input { font-size: 18px; padding: 10px; height: 48px; border: 1px solid var(--line); border-radius: 10px;
+    background: var(--bg); color: var(--text); width: 100%; min-width: 0; max-width: 100%;
+    -webkit-appearance: none; appearance: none; margin: 0; }
+  form.entry input[type="date"] { display: block; text-align: left; -webkit-text-fill-color: var(--text);
+    font-size: 16px; }
+  form.entry input[type="date"]::-webkit-date-and-time-value { text-align: left; margin: 0; }
+  form.entry input::-webkit-inner-spin-button, form.entry input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
   form.entry button { grid-column: 1 / -1; font-size: 18px; padding: 14px; min-height: 52px; border: 0; border-radius: 10px;
     background: var(--accent); color: #fff; font-weight: 600; }
   form.entry button:disabled { opacity: .5; }
