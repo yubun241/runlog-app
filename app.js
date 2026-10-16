@@ -36,10 +36,22 @@ export function filterRows(rows, period, today = new Date()) {
   return valid.filter(r => r.date >= f && r.date < t);
 }
 
-/** 週ごとの走行回数 Map<週開始日, 回数> */
+/** 同日複数行を 1 日 1 レコードに正規化。距離・時間は合算、速度は距離加重平均、体重は最終行 */
+export function dailyRows(rows) {
+  const m = new Map();
+  for (const r of [...rows].sort((a, b) => a.date.localeCompare(b.date))) {
+    const d = m.get(r.date) || { date: r.date, distance_km: 0, minutes: 0, weight_kg: 0, runs: 0 };
+    d.distance_km += r.distance_km; d.minutes += durationMin(r); d.runs++;
+    if (r.weight_kg > 0) d.weight_kg = r.weight_kg;
+    m.set(r.date, d);
+  }
+  return [...m.values()].map(d => ({ ...d, speed_kmh: d.minutes > 0 ? +(d.distance_km / d.minutes * 60).toFixed(2) : 0 }));
+}
+
+/** 週ごとの走った日数 Map<週開始日, 日数> */
 export function weekCounts(rows) {
   const m = new Map();
-  for (const r of rows) { const k = ymd(weekStart(parse(r.date))); m.set(k, (m.get(k) || 0) + 1); }
+  for (const d of dailyRows(rows)) { const k = ymd(weekStart(parse(d.date))); m.set(k, (m.get(k) || 0) + 1); }
   return m;
 }
 
@@ -121,15 +133,16 @@ function render() {
 
   $('k-dist').innerHTML = `${fmt(dist)}<small>km</small>`;
   $('k-kcal').innerHTML = `${fmt(cal, 0)}<small>kcal</small>`;
-  $('k-count').innerHTML = `${rows.length}<small>回</small> ${Math.floor(mins / 60)}<small>h</small>${pad(Math.round(mins % 60))}<small>m</small>`;
+  const days = dailyRows(rows);
+  $('k-count').innerHTML = `${days.length}<small>日</small> ${Math.floor(mins / 60)}<small>h</small>${pad(Math.round(mins % 60))}<small>m</small>`;
   const goal = Number(store.getSettings()?.goal) || 3;
   const valid = filterRows(allRows, 'all');
   const thisWeek = weekCounts(valid).get(ymd(weekStart(new Date()))) || 0;
   $('k-streak').innerHTML = `${weekStreak(valid, goal)}<small>週</small>`;
-  $('g-text').textContent = `今週 ${thisWeek} / ${goal} 回`;
+  $('g-text').textContent = `今週 ${thisWeek} / ${goal} 日`;
   $('g-bar').style.width = `${Math.min(100, (thisWeek / goal) * 100)}%`;
   $('g-bar').classList.toggle('done', thisWeek >= goal);
-  $('g-msg').textContent = thisWeek >= goal ? '今週の目標達成 🎉' : `あと ${goal - thisWeek} 回`;
+  $('g-msg').textContent = thisWeek >= goal ? '今週の目標達成 🎉' : `あと ${goal - thisWeek} 日`;
   $('empty').hidden = allRows.length > 0;
 
   const accent = cssVar('--accent'), accent2 = cssVar('--accent-2');
@@ -157,13 +170,13 @@ function render() {
       scales: { ...baseOptions().scales, x: { ...baseOptions().scales.x, type: 'category' } } },
   });
 
-  const sp = rows.map(r => ({ x: r.date, y: r.speed_kmh, r: 2 + Math.min(r.distance_km, 20) / 2 }));
+  const sp = days.map(d => ({ x: d.date, y: d.speed_kmh, r: 2 + Math.min(d.distance_km, 20) / 2, runs: d.runs }));
   upsertChart('c-speed', {
     type: 'line',
     data: { datasets: [{ data: sp, borderColor: accent, borderWidth: 1.5, pointBackgroundColor: accent2,
       pointRadius: ctx => ctx.raw?.r ?? 3, tension: .2 }] },
     options: { ...baseOptions(), parsing: { xAxisKey: 'x', yAxisKey: 'y' },
-      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw.y} km/h` } } },
+      plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw.y} km/h` + (c.raw.runs > 1 ? `（${c.raw.runs}本の加重平均）` : '') } } },
       scales: { ...baseOptions().scales, x: { ...baseOptions().scales.x, type: 'category' } } },
   });
 

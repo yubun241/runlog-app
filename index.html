@@ -5,10 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>RunLog</title>
 <link rel="manifest" href="manifest.json">
-<meta name="theme-color" content="#0f172a">
+<meta name="theme-color" content="#f8fafc" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#0f172a" media="(prefers-color-scheme: dark)">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="apple-touch-icon" href="icon.svg">
+<meta name="apple-mobile-web-app-title" content="RunLog">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <style>
   :root {
@@ -21,22 +23,26 @@
   * { box-sizing: border-box; }
   html, body { margin: 0; background: var(--bg); color: var(--text);
     font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Noto Sans JP", sans-serif; }
-  body { padding: 12px 16px calc(24px + env(safe-area-inset-bottom)); max-width: 640px; margin: 0 auto; }
+  body { padding: calc(8px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+    max-width: 640px; margin: 0 auto; touch-action: manipulation; -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent; }
+  button, input { font-family: inherit; }
   header { display: flex; align-items: center; justify-content: space-between; padding: 4px 0 12px; }
   header h1 { font-size: 18px; margin: 0; letter-spacing: .02em; }
-  header button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 8px; padding: 6px 10px; font-size: 13px; }
+  header button { background: none; border: 1px solid var(--line); color: var(--muted); border-radius: 10px; padding: 0 14px; min-height: 40px; font-size: 14px; }
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
   form.entry { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   form.entry label { display: flex; flex-direction: column; font-size: 12px; color: var(--muted); gap: 4px; }
-  form.entry input { font-size: 18px; padding: 10px; border: 1px solid var(--line); border-radius: 10px;
+  form.entry input { font-size: 20px; padding: 12px; min-height: 48px; border: 1px solid var(--line); border-radius: 10px;
     background: var(--bg); color: var(--text); width: 100%; }
-  form.entry button { grid-column: 1 / -1; font-size: 17px; padding: 13px; border: 0; border-radius: 10px;
+  form.entry button { grid-column: 1 / -1; font-size: 18px; padding: 14px; min-height: 52px; border: 0; border-radius: 10px;
     background: var(--accent); color: #fff; font-weight: 600; }
   form.entry button:disabled { opacity: .5; }
   .status { font-size: 12px; color: var(--muted); min-height: 16px; margin-top: 6px; }
   .status.err { color: var(--err); } .status.ok { color: var(--ok); }
-  .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
-  .tabs button { padding: 10px 0; border: 1px solid var(--line); background: var(--card); color: var(--muted);
+  .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px;
+    position: sticky; top: env(safe-area-inset-top); z-index: 10; background: var(--bg); padding: 6px 0; }
+  .tabs button { padding: 0; min-height: 44px; border: 1px solid var(--line); background: var(--card); color: var(--muted);
     border-radius: 10px; font-size: 14px; }
   .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
   .kpis { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
@@ -44,17 +50,17 @@
   .kpi .label { font-size: 12px; color: var(--muted); }
   .kpi .value { font-size: 26px; font-weight: 700; margin-top: 2px; }
   .kpi .value small { font-size: 13px; font-weight: 400; color: var(--muted); margin-left: 2px; }
-  .chart { height: 220px; position: relative; }
+  .chart { height: 210px; position: relative; }
   .chart h2 { font-size: 13px; color: var(--muted); margin: 0 0 6px; font-weight: 500; }
   .chart canvas { max-height: 190px; }
   .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 24px 0; }
-  dialog { border: 0; border-radius: 16px; padding: 18px; width: min(92vw, 420px); background: var(--card); color: var(--text); }
+  dialog { border: 0; border-radius: 16px; padding: 18px; width: min(92vw, 420px); max-height: 85dvh; overflow-y: auto; background: var(--card); color: var(--text); }
   dialog::backdrop { background: rgba(0,0,0,.5); }
   dialog h2 { margin: 0 0 12px; font-size: 16px; }
   dialog label { display: block; font-size: 12px; color: var(--muted); margin: 10px 0 4px; }
-  dialog input { width: 100%; font-size: 15px; padding: 9px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
+  dialog input { width: 100%; font-size: 16px; padding: 11px; min-height: 44px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); }
   dialog .row { display: flex; gap: 8px; margin-top: 16px; }
-  dialog .row button { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 15px; }
+  dialog .row button { flex: 1; min-height: 48px; padding: 0 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 15px; }
   dialog .row button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   dialog p.help { font-size: 12px; color: var(--muted); line-height: 1.5; }
   .goal { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
@@ -64,7 +70,7 @@
   .goal .track { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
   .goal .bar { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .3s; }
   .goal .bar.done { background: var(--ok); }
-  button.del { background: none; border: 0; color: var(--muted); font-size: 14px; padding: 2px 6px; }
+  button.del { background: none; border: 0; color: var(--muted); font-size: 16px; min-width: 40px; min-height: 40px; }
   .warn { background: #fef3c7; color: #92400e; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
   table.recent { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.recent td, table.recent th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; }
@@ -84,8 +90,8 @@
   <form class="entry" id="entry">
     <label>日付<input type="date" name="date" required></label>
     <label>体重 kg<input type="number" name="weight_kg" step="0.1" min="20" max="300" inputmode="decimal" required></label>
-    <label>距離 km<input type="number" name="distance_km" step="0.1" min="0" max="100" inputmode="decimal" required autofocus></label>
-    <label>速度 km/h<input type="number" name="speed_kmh" step="0.1" min="0" max="30" inputmode="decimal" required></label>
+    <label>距離 km<input type="number" name="distance_km" step="0.1" min="0" max="100" inputmode="decimal" required enterkeyhint="next"></label>
+    <label>速度 km/h<input type="number" name="speed_kmh" step="0.1" min="0" max="30" inputmode="decimal" required enterkeyhint="done"></label>
     <button type="submit" id="btn-save">記録</button>
   </form>
   <div class="status" id="status"></div>
@@ -100,7 +106,7 @@
 </nav>
 
 <section class="goal">
-  <div class="top"><b id="g-text">今週 0 / 3 回</b><span id="g-msg"></span></div>
+  <div class="top"><b id="g-text">今週 0 / 3 日</b><span id="g-msg"></span></div>
   <div class="track"><div class="bar" id="g-bar"></div></div>
 </section>
 
@@ -109,13 +115,13 @@
 <section class="kpis">
   <div class="kpi"><div class="label">距離</div><div class="value" id="k-dist">–</div></div>
   <div class="kpi"><div class="label">カロリー</div><div class="value" id="k-kcal">–</div></div>
-  <div class="kpi"><div class="label">回数 / 時間</div><div class="value" id="k-count">–</div></div>
+  <div class="kpi"><div class="label">走った日数 / 時間</div><div class="value" id="k-count">–</div></div>
   <div class="kpi"><div class="label">目標達成 連続週</div><div class="value" id="k-streak">–</div></div>
 </section>
 
 <section class="card chart"><h2 id="h-dist">距離</h2><canvas id="c-dist"></canvas></section>
 <section class="card chart"><h2>体重（点=実測、線=7日移動平均）</h2><canvas id="c-weight"></canvas></section>
-<section class="card chart"><h2>速度（点の大きさ=距離）</h2><canvas id="c-speed"></canvas></section>
+<section class="card chart"><h2>速度（日別・点の大きさ=距離）</h2><canvas id="c-speed"></canvas></section>
 
 <section class="card">
   <h2 style="font-size:13px;color:var(--muted);margin:0 0 8px;font-weight:500">直近の記録</h2>
@@ -129,7 +135,7 @@
   <label>ファイルパス<input id="s-path" value="runs.csv" autocapitalize="off" autocomplete="off"></label>
   <label>Fine-grained PAT<input id="s-pat" type="password" autocomplete="off"></label>
   <label>PAT 失効日（任意）<input id="s-exp" type="date"></label>
-  <label>週の目標回数<input id="s-goal" type="number" min="1" max="14" value="3" inputmode="numeric"></label>
+  <label>週の目標日数<input id="s-goal" type="number" min="1" max="14" value="3" inputmode="numeric"></label>
   <p class="help">PAT はこの端末のブラウザにのみ保存されます。権限は対象 repo の Contents: Read and write だけにしてください。</p>
   <div class="row">
     <button type="button" id="s-cancel">閉じる</button>
