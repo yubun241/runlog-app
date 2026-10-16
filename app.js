@@ -20,6 +20,7 @@ export function weekStart(d) {
 /** 期間の [from, to) を返す。全期間は null */
 export function periodRange(period, today = new Date()) {
   const t = new Date(today); t.setHours(0, 0, 0, 0);
+  if (period === 'day')   { return [t, addDays(t, 1)]; }
   if (period === 'week')  { const f = weekStart(t); return [f, addDays(f, 7)]; }
   if (period === 'month') { const f = new Date(t.getFullYear(), t.getMonth(), 1); return [f, new Date(t.getFullYear(), t.getMonth() + 1, 1)]; }
   if (period === 'year')  { return [new Date(t.getFullYear(), 0, 1), new Date(t.getFullYear() + 1, 0, 1)]; }
@@ -35,18 +36,29 @@ export function filterRows(rows, period, today = new Date()) {
   return valid.filter(r => r.date >= f && r.date < t);
 }
 
-/** 週1回以上走った週の連続数（今週または先週から遡る） */
-export function weekStreak(rows, today = new Date()) {
-  const weeks = new Set(rows.map(r => ymd(weekStart(parse(r.date)))));
+/** 週ごとの走行回数 Map<週開始日, 回数> */
+export function weekCounts(rows) {
+  const m = new Map();
+  for (const r of rows) { const k = ymd(weekStart(parse(r.date))); m.set(k, (m.get(k) || 0) + 1); }
+  return m;
+}
+
+/** 目標回数を達成した週の連続数。今週は未達でも途切れ扱いにせず先週から遡る */
+export function weekStreak(rows, goal = 1, today = new Date()) {
+  const counts = weekCounts(rows);
+  const ok = k => (counts.get(k) || 0) >= goal;
   let cur = weekStart(today);
-  if (!weeks.has(ymd(cur))) cur = addDays(cur, -7);          // 今週まだ走っていなくても先週からつなぐ
+  if (!ok(ymd(cur))) cur = addDays(cur, -7);
   let n = 0;
-  while (weeks.has(ymd(cur))) { n++; cur = addDays(cur, -7); }
+  while (ok(ymd(cur))) { n++; cur = addDays(cur, -7); }
   return n;
 }
 
-/** 期間に応じたビン：週/月→日、年/総合→月 */
+/** 期間に応じたビン：日→1回ごと、週/月→日、年/総合→月 */
 export function binDistance(rows, period) {
+  if (period === 'day') {
+    return { labels: rows.map((_, i) => `${i + 1}回目`), values: rows.map(r => +r.distance_km.toFixed(1)) };
+  }
   const key = (period === 'week' || period === 'month') ? d => d : d => d.slice(0, 7);
   const m = new Map();
   for (const r of rows) m.set(key(r.date), (m.get(key(r.date)) || 0) + r.distance_km);
@@ -110,10 +122,18 @@ function render() {
   $('k-dist').innerHTML = `${fmt(dist)}<small>km</small>`;
   $('k-kcal').innerHTML = `${fmt(cal, 0)}<small>kcal</small>`;
   $('k-count').innerHTML = `${rows.length}<small>回</small> ${Math.floor(mins / 60)}<small>h</small>${pad(Math.round(mins % 60))}<small>m</small>`;
-  $('k-streak').innerHTML = `${weekStreak(filterRows(allRows, 'all'))}<small>週</small>`;
+  const goal = Number(store.getSettings()?.goal) || 3;
+  const valid = filterRows(allRows, 'all');
+  const thisWeek = weekCounts(valid).get(ymd(weekStart(new Date()))) || 0;
+  $('k-streak').innerHTML = `${weekStreak(valid, goal)}<small>週</small>`;
+  $('g-text').textContent = `今週 ${thisWeek} / ${goal} 回`;
+  $('g-bar').style.width = `${Math.min(100, (thisWeek / goal) * 100)}%`;
+  $('g-bar').classList.toggle('done', thisWeek >= goal);
+  $('g-msg').textContent = thisWeek >= goal ? '今週の目標達成 🎉' : `あと ${goal - thisWeek} 回`;
+  $('empty').hidden = allRows.length > 0;
 
   const accent = cssVar('--accent'), accent2 = cssVar('--accent-2');
-  const labelMap = { week: '距離（日別）', month: '距離（日別）', year: '距離（月別）', all: '距離（月別）' };
+  const labelMap = { day: '距離（本日・回ごと）', week: '距離（日別）', month: '距離（日別）', year: '距離（月別）', all: '距離（月別）' };
   $('h-dist').textContent = labelMap[period];
 
   const b = binDistance(rows, period);
@@ -148,8 +168,8 @@ function render() {
   });
 
   const recent = [...allRows].sort((a, b2) => b2.date.localeCompare(a.date)).slice(0, 7);
-  $('recent').innerHTML = `<tr><th>日付</th><th>km</th><th>km/h</th><th>分</th><th>kg</th><th>kcal</th></tr>` +
-    recent.map(r => `<tr><td>${r.date}</td><td>${fmt(r.distance_km)}</td><td>${fmt(r.speed_kmh)}</td><td>${Math.round(durationMin(r))}</td><td>${fmt(r.weight_kg)}</td><td>${Math.round(kcal(r))}</td></tr>`).join('');
+  $('recent').innerHTML = `<tr><th>日付</th><th>km</th><th>km/h</th><th>分</th><th>kg</th><th>kcal</th><th></th></tr>` +
+    recent.map(r => `<tr><td>${r.date}</td><td>${fmt(r.distance_km)}</td><td>${fmt(r.speed_kmh)}</td><td>${Math.round(durationMin(r))}</td><td>${fmt(r.weight_kg)}</td><td>${Math.round(kcal(r))}</td><td><button class="del" type="button" data-key="${store.rowKey(r)}" aria-label="削除">✕</button></td></tr>`).join('');
 
   // 入力フォームのデフォルト
   const f = $('entry');
@@ -217,11 +237,27 @@ $('entry').addEventListener('submit', async e => {
   }
 });
 
+$('recent').addEventListener('click', async e => {
+  const btn = e.target.closest('button.del'); if (!btn) return;
+  const key = btn.dataset.key;
+  const r = allRows.find(x => store.rowKey(x) === key); if (!r) return;
+  if (!confirm(`${r.date} ${r.distance_km}km の記録を削除しますか？`)) return;
+  btn.disabled = true;
+  try {
+    setStatus('削除中…');
+    allRows = await store.remove(key);
+    setStatus('削除しました', 'ok');
+  } catch (err) {
+    setStatus(`削除失敗: ${err.message}`, 'err');
+  } finally { render(); }
+});
+
 const dlg = $('dlg');
 function openSettings() {
   const s = store.getSettings() || {};
   $('s-owner').value = s.owner || ''; $('s-repo').value = s.repo || 'runlog-data';
   $('s-path').value = s.path || 'runs.csv'; $('s-pat').value = s.pat || ''; $('s-exp').value = s.exp || '';
+  $('s-goal').value = s.goal || 3;
   dlg.showModal();
 }
 $('btn-settings').addEventListener('click', openSettings);
@@ -230,6 +266,7 @@ $('s-save').addEventListener('click', async () => {
   store.saveSettings({
     owner: $('s-owner').value.trim(), repo: $('s-repo').value.trim(),
     path: $('s-path').value.trim(), pat: $('s-pat').value.trim(), exp: $('s-exp').value,
+    goal: Math.max(1, Number($('s-goal').value) || 3),
   });
   dlg.close(); checkPatExpiry(); await reload();
 });

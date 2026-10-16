@@ -35,7 +35,7 @@
   form.entry button:disabled { opacity: .5; }
   .status { font-size: 12px; color: var(--muted); min-height: 16px; margin-top: 6px; }
   .status.err { color: var(--err); } .status.ok { color: var(--ok); }
-  .tabs { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; margin-bottom: 12px; }
+  .tabs { display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px; margin-bottom: 12px; }
   .tabs button { padding: 10px 0; border: 1px solid var(--line); background: var(--card); color: var(--muted);
     border-radius: 10px; font-size: 14px; }
   .tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); font-weight: 600; }
@@ -57,6 +57,14 @@
   dialog .row button { flex: 1; padding: 11px; border-radius: 10px; border: 1px solid var(--line); background: var(--card); color: var(--text); font-size: 15px; }
   dialog .row button.primary { background: var(--accent); color: #fff; border-color: var(--accent); }
   dialog p.help { font-size: 12px; color: var(--muted); line-height: 1.5; }
+  .goal { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 12px 14px; margin-bottom: 12px; }
+  .goal .top { display: flex; justify-content: space-between; font-size: 14px; margin-bottom: 8px; }
+  .goal .top b { font-weight: 600; }
+  .goal .top span { color: var(--muted); font-size: 13px; }
+  .goal .track { height: 10px; background: var(--line); border-radius: 999px; overflow: hidden; }
+  .goal .bar { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .3s; }
+  .goal .bar.done { background: var(--ok); }
+  button.del { background: none; border: 0; color: var(--muted); font-size: 14px; padding: 2px 6px; }
   .warn { background: #fef3c7; color: #92400e; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
   table.recent { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.recent td, table.recent th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; }
@@ -84,17 +92,25 @@
 </section>
 
 <nav class="tabs" id="tabs">
+  <button data-p="day">日</button>
   <button data-p="week">週</button>
   <button data-p="month">月</button>
   <button data-p="year">年</button>
   <button data-p="all">総合</button>
 </nav>
 
+<section class="goal">
+  <div class="top"><b id="g-text">今週 0 / 3 回</b><span id="g-msg"></span></div>
+  <div class="track"><div class="bar" id="g-bar"></div></div>
+</section>
+
+<p id="empty" class="empty" hidden>まだ記録がありません。上のフォームから最初の 1 本を記録しましょう。</p>
+
 <section class="kpis">
   <div class="kpi"><div class="label">距離</div><div class="value" id="k-dist">–</div></div>
   <div class="kpi"><div class="label">カロリー</div><div class="value" id="k-kcal">–</div></div>
   <div class="kpi"><div class="label">回数 / 時間</div><div class="value" id="k-count">–</div></div>
-  <div class="kpi"><div class="label">連続週</div><div class="value" id="k-streak">–</div></div>
+  <div class="kpi"><div class="label">目標達成 連続週</div><div class="value" id="k-streak">–</div></div>
 </section>
 
 <section class="card chart"><h2 id="h-dist">距離</h2><canvas id="c-dist"></canvas></section>
@@ -113,6 +129,7 @@
   <label>ファイルパス<input id="s-path" value="runs.csv" autocapitalize="off" autocomplete="off"></label>
   <label>Fine-grained PAT<input id="s-pat" type="password" autocomplete="off"></label>
   <label>PAT 失効日（任意）<input id="s-exp" type="date"></label>
+  <label>週の目標回数<input id="s-goal" type="number" min="1" max="14" value="3" inputmode="numeric"></label>
   <p class="help">PAT はこの端末のブラウザにのみ保存されます。権限は対象 repo の Contents: Read and write だけにしてください。</p>
   <div class="row">
     <button type="button" id="s-cancel">閉じる</button>

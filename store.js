@@ -109,6 +109,28 @@ export async function append(row) {
   throw new Error('競合が解消できませんでした');
 }
 
+/** 行の同一性キー（主キーなしの CSV なので全列で識別。完全同一行が複数あれば先頭1つを消す） */
+export function rowKey(r) {
+  return [r.date, r.distance_km, r.speed_kmh, r.weight_kg].join('|');
+}
+
+/** キーに一致する行を1つ削除。競合時は再試行。 */
+export async function remove(key) {
+  for (let i = 0; i < 3; i++) {
+    const { rows, sha } = await load();
+    const idx = rows.findIndex(r => rowKey(r) === key);
+    if (idx < 0) return rows;                       // すでに無い
+    rows.splice(idx, 1);
+    try {
+      await save(rows, sha);
+      return rows;
+    } catch (e) {
+      if (!(e instanceof ConflictError)) throw e;
+    }
+  }
+  throw new Error('競合が解消できませんでした');
+}
+
 // ---------- offline queue / cache ----------
 export function getCache() {
   try { return JSON.parse(localStorage.getItem(CACHE_KEY)) || []; } catch { return []; }
