@@ -1,5 +1,5 @@
 // アプリシェルのみキャッシュ。GitHub API への通信は一切介入しない。
-const CACHE = 'runlog-shell-v7';
+const CACHE = 'runlog-shell-v8';
 const SHELL = ['./', './index.html', './app.js', './store.js', './manifest.json', './icon.svg', './apple-touch-icon.png'];
 
 self.addEventListener('install', e => {

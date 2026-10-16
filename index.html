@@ -58,6 +58,13 @@
   .chart { height: 210px; position: relative; }
   .chart h2 { font-size: 13px; color: var(--muted); margin: 0 0 6px; font-weight: 500; }
   .chart canvas { max-height: 190px; }
+  .nodata { position: absolute; inset: 40px 0 0; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
+  .export textarea { width: 100%; min-height: 160px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
+    padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); resize: vertical; -webkit-appearance: none; }
+  .export .bar { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .export .bar h2 { flex: 1; font-size: 13px; color: var(--muted); margin: 0; font-weight: 500; }
+  .export select { font-size: 16px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); min-height: 40px; }
+  .export button { margin-top: 10px; width: 100%; min-height: 48px; font-size: 16px; font-weight: 600; border: 0; border-radius: 10px; background: var(--accent); color: #fff; }
   .empty { color: var(--muted); font-size: 14px; text-align: center; padding: 24px 0; }
   dialog { border: 0; border-radius: 16px; padding: 18px; width: min(92vw, 420px); max-height: 85dvh; overflow-y: auto; background: var(--card); color: var(--text); }
   dialog::backdrop { background: rgba(0,0,0,.5); }
@@ -124,13 +131,22 @@
   <div class="kpi"><div class="label">目標達成 連続週</div><div class="value" id="k-streak">–</div></div>
 </section>
 
-<section class="card chart"><h2 id="h-dist">距離</h2><canvas id="c-dist"></canvas></section>
-<section class="card chart"><h2>体重（点=実測、線=7日移動平均）</h2><canvas id="c-weight"></canvas></section>
-<section class="card chart"><h2>速度（日別・点の大きさ=距離）</h2><canvas id="c-speed"></canvas></section>
+<section class="card chart"><h2 id="h-dist">距離</h2><canvas id="c-dist"></canvas><p class="nodata" hidden>この期間の記録はありません</p></section>
+<section class="card chart"><h2>体重（点=実測、線=7日移動平均）</h2><canvas id="c-weight"></canvas><p class="nodata" hidden>この期間の記録はありません</p></section>
+<section class="card chart"><h2>速度（日別・点の大きさ=距離）</h2><canvas id="c-speed"></canvas><p class="nodata" hidden>この期間の記録はありません</p></section>
 
 <section class="card">
   <h2 style="font-size:13px;color:var(--muted);margin:0 0 8px;font-weight:500">直近の記録</h2>
   <table class="recent" id="recent"></table>
+</section>
+
+<section class="card export">
+  <div class="bar">
+    <h2>AI コーチ用データ（テキスト）</h2>
+    <select id="x-days"><option value="30" selected>30日</option><option value="60">60日</option><option value="90">90日</option><option value="365">1年</option></select>
+  </div>
+  <textarea id="x-text" readonly spellcheck="false"></textarea>
+  <button type="button" id="x-copy">全選択してコピー</button>
 </section>
 
 <dialog id="dlg">

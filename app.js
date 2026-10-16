@@ -93,6 +93,26 @@ export function weightSeries(allRows, fromDate) {
   return { points: pts.filter(keep), ma: ma.filter(keep) };
 }
 
+/** AI コーチ用テキスト。直近 N 日を日次正規化して出力 */
+export function exportText(rows, days = 30, goal = 3, today = new Date()) {
+  const to = ymd(today), from = ymd(addDays(today, -(days - 1)));
+  const d = dailyRows(rows.filter(r => r.date >= from && r.date <= to));
+  const dist = d.reduce((a, x) => a + x.distance_km, 0);
+  const mins = d.reduce((a, x) => a + x.minutes, 0);
+  const cal = d.reduce((a, x) => a + KCAL_PER_KG_KM * x.weight_kg * x.distance_km, 0);
+  const w = d.filter(x => x.weight_kg > 0).map(x => x.weight_kg);
+  const head = [
+    `RunLog 直近${days}日（${from}〜${to}）ジムのトレッドミル記録`,
+    `走った日数: ${d.length}日（目標: 週${goal}日） / 合計距離: ${dist.toFixed(1)}km / 合計時間: ${Math.floor(mins / 60)}h${pad(Math.round(mins % 60))}m / 推定消費: ${Math.round(cal)}kcal`,
+    w.length ? `体重: ${w[0].toFixed(1)}kg → ${w[w.length - 1].toFixed(1)}kg（最小${Math.min(...w).toFixed(1)} / 最大${Math.max(...w).toFixed(1)}）` : '体重: 記録なし',
+    '',
+    'date,km,km/h,min,kg,kcal,runs',
+  ];
+  const body = d.map(x => [x.date, x.distance_km.toFixed(1), x.speed_kmh.toFixed(1), Math.round(x.minutes),
+    x.weight_kg ? x.weight_kg.toFixed(1) : '', Math.round(KCAL_PER_KG_KM * x.weight_kg * x.distance_km), x.runs].join(','));
+  return [...head, ...body].join('\n');
+}
+
 // ---------- UI ----------
 const $ = id => document.getElementById(id);
 const PERIOD_KEY = 'runlog.period';
@@ -105,9 +125,14 @@ function fmt(n, digits = 1) { return n.toLocaleString('ja-JP', { maximumFraction
 
 function cssVar(name) { return getComputedStyle(document.documentElement).getPropertyValue(name).trim(); }
 
-function upsertChart(id, config) {
-  if (charts[id]) { charts[id].data = config.data; charts[id].options = config.options; charts[id].update(); return; }
-  charts[id] = new Chart($(id), config);
+/** 毎回破棄して作り直す。差分更新でカテゴリ軸のラベルが追随しない問題を根本から避ける */
+function upsertChart(id, config, isEmpty) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+  const canvas = $(id);
+  const note = canvas.parentElement.querySelector('.nodata');
+  note.hidden = !isEmpty;
+  canvas.style.visibility = isEmpty ? 'hidden' : 'visible';
+  if (!isEmpty) charts[id] = new Chart(canvas, config);
 }
 
 function baseOptions() {
@@ -154,13 +179,14 @@ function render() {
     type: 'bar',
     data: { labels: b.labels.map(l => l.length === 10 ? l.slice(5) : l), datasets: [{ data: b.values, backgroundColor: accent, borderRadius: 4 }] },
     options: { ...baseOptions(), scales: { ...baseOptions().scales, y: { ...baseOptions().scales.y, beginAtZero: true } } },
-  });
+  }, b.labels.length === 0);
 
   const range = periodRange(period);
   const w = weightSeries(filterRows(allRows, 'all'), range ? ymd(range[0]) : null);
   upsertChart('c-weight', {
     type: 'line',
     data: {
+      labels: w.points.map(p => p.x),
       datasets: [
         { data: w.points, showLine: false, pointRadius: 3, backgroundColor: accent2 },
         { data: w.ma, pointRadius: 0, borderColor: accent, borderWidth: 2, tension: .3 },
@@ -168,17 +194,19 @@ function render() {
     },
     options: { ...baseOptions(), parsing: { xAxisKey: 'x', yAxisKey: 'y' },
       scales: { ...baseOptions().scales, x: { ...baseOptions().scales.x, type: 'category' } } },
-  });
+  }, w.points.length === 0);
 
   const sp = days.map(d => ({ x: d.date, y: d.speed_kmh, r: 2 + Math.min(d.distance_km, 20) / 2, runs: d.runs }));
   upsertChart('c-speed', {
     type: 'line',
-    data: { datasets: [{ data: sp, borderColor: accent, borderWidth: 1.5, pointBackgroundColor: accent2,
+    data: { labels: sp.map(p => p.x), datasets: [{ data: sp, borderColor: accent, borderWidth: 1.5, pointBackgroundColor: accent2,
       pointRadius: ctx => ctx.raw?.r ?? 3, tension: .2 }] },
     options: { ...baseOptions(), parsing: { xAxisKey: 'x', yAxisKey: 'y' },
       plugins: { legend: { display: false }, tooltip: { callbacks: { label: c => `${c.raw.y} km/h` + (c.raw.runs > 1 ? `（${c.raw.runs}本の加重平均）` : '') } } },
       scales: { ...baseOptions().scales, x: { ...baseOptions().scales.x, type: 'category' } } },
-  });
+  }, sp.length === 0);
+
+  renderExport();
 
   const recent = [...allRows].sort((a, b2) => b2.date.localeCompare(a.date)).slice(0, 7);
   $('recent').innerHTML = `<tr><th>日付</th><th>km</th><th>km/h</th><th>分</th><th>kg</th><th>kcal</th><th></th></tr>` +
@@ -282,6 +310,22 @@ $('s-save').addEventListener('click', async () => {
     goal: Math.max(1, Number($('s-goal').value) || 3),
   });
   dlg.close(); checkPatExpiry(); await reload();
+});
+
+function renderExport() {
+  const days = Number($('x-days').value) || 30;
+  const goal = Number(store.getSettings()?.goal) || 3;
+  $('x-text').value = exportText(filterRows(allRows, 'all'), days, goal);
+}
+$('x-days').addEventListener('change', renderExport);
+$('x-copy').addEventListener('click', async () => {
+  const ta = $('x-text');
+  ta.focus(); ta.select(); ta.setSelectionRange(0, ta.value.length);   // iOS は select() だけでは選択されない
+  let ok = false;
+  try { await navigator.clipboard.writeText(ta.value); ok = true; }
+  catch { try { ok = document.execCommand('copy'); } catch {} }
+  $('x-copy').textContent = ok ? 'コピーしました' : '長押しでコピーしてください';
+  setTimeout(() => { $('x-copy').textContent = '全選択してコピー'; }, 1800);
 });
 
 // ---------- boot ----------
