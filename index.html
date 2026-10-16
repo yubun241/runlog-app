@@ -58,6 +58,7 @@
   .chart { height: 210px; position: relative; }
   .chart h2 { font-size: 13px; color: var(--muted); margin: 0 0 6px; font-weight: 500; }
   .chart canvas { max-height: 190px; }
+  .nodata[hidden] { display: none; }
   .nodata { position: absolute; inset: 40px 0 0; margin: 0; display: grid; place-items: center; color: var(--muted); font-size: 14px; }
   .export textarea { width: 100%; min-height: 160px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace;
     padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg); color: var(--text); resize: vertical; -webkit-appearance: none; }
@@ -83,6 +84,7 @@
   .goal .bar { height: 100%; width: 0; background: var(--accent); border-radius: 999px; transition: width .3s; }
   .goal .bar.done { background: var(--ok); }
   button.del { background: none; border: 0; color: var(--muted); font-size: 16px; min-width: 40px; min-height: 40px; }
+  [hidden] { display: none !important; }
   .warn { background: #fef3c7; color: #92400e; border-radius: 10px; padding: 10px 12px; font-size: 13px; margin-bottom: 12px; }
   table.recent { width: 100%; border-collapse: collapse; font-size: 13px; }
   table.recent td, table.recent th { padding: 6px 4px; border-bottom: 1px solid var(--line); text-align: right; }
